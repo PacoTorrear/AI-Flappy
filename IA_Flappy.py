@@ -282,3 +282,150 @@ def draw_window(win, birds, pipes, base, score, gen, pipe_ind):
                 pass
         # Dibuja el pájaro
         bird.draw(win)
+    
+    # Puntaje
+    score_label = STAT_FONT.render("Puntaje: " + str(score), 1, (255, 255, 255))
+    win.blit(score_label, (WIN_WIDTH - score_label.get_width() - 15, 10))
+
+    # Generaciones
+    score_label = STAT_FONT.render("Gens: " + str(gen-1), 1, (255, 255, 255))
+    win.blit(score_label, (10, 10))
+
+    # Vivos
+    score_label = STAT_FONT.render("Vivos: " + str(len(birds)), 1, (255, 255, 255))
+    win.blit(score_label, (10, 50))
+
+    pygame.display.update()
+
+def eval_genomes(genomes, config):
+    """
+    Ejecuta la simulación de la población actual de aves y establece su
+    aptitud en función de la distancia que alcanzan en el juego.
+    """
+    global WIN, gen
+    win = WIN
+    gen += 1
+
+    # Comienza creando listas que contengan el genoma en sí, la
+    # red neuronal asociada al genoma y el
+    # objeto de ave que utiliza esa red para jugar
+    nets = []
+    birds = []
+    ge = []
+    for genome_id, genome in genomes:
+        genome.fitness = 0  # comienza con un nivel de aptitud de 0
+        net = neat.nn.FeedForwardNetwork.create(genome, config)
+        nets.append(net)
+        birds.append(Bird(230, 350))
+        ge.append(genome)
+
+    base = Base(FLOOR)
+    pipes = [Pipe(700)]
+    score = 0
+
+    clock = pygame.time.Clock()
+
+    run = True
+    while run and len(birds) > 0:
+        clock.tick(30)
+
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                run = False
+                pygame.quit()
+                quit()
+                break
+
+        pipe_ind = 0
+        if len(birds) > 0:
+            if len(pipes) > 1 and birds[0].x > pipes[0].x + pipes[0].PIPE_TOP.get_width():  # determina si usar el primer o segundo
+                pipe_ind = 1                                                                 # tubo en la pantalla para la entrada de la red neuronal
+
+        for x, bird in enumerate(birds):  # da a cada ave una aptitud de 0.1 por cada fotograma que permanece viva
+            ge[x].fitness += 0.1
+            bird.move()
+
+            # envía la ubicación del ave, la ubicación del tubo superior y la ubicación del tubo inferior y determina desde la red si debe saltar o no
+            output = nets[birds.index(bird)].activate((bird.y, abs(bird.y - pipes[pipe_ind].height), abs(bird.y - pipes[pipe_ind].bottom)))
+
+            if output[0] > 0.5:  # usamos una función de activación tangente hiperbólica, por lo que el resultado estará entre -1 y 1. si es mayor a 0.5, salta
+                bird.jump()
+
+        base.move()
+
+        rem = []
+        add_pipe = False
+        for pipe in pipes:
+            pipe.move()
+            # revisa si hay colisión
+            for bird in birds:
+                if pipe.collide(bird, win):
+                    ge[birds.index(bird)].fitness -= 1
+                    nets.pop(birds.index(bird))
+                    ge.pop(birds.index(bird))
+                    birds.pop(birds.index(bird))
+
+            if pipe.x + pipe.PIPE_TOP.get_width() < 0:
+                rem.append(pipe)
+
+            if not pipe.passed and pipe.x < bird.x:
+                pipe.passed = True
+                add_pipe = True
+
+        if add_pipe:
+            score += 1
+            # se puede agregar esta línea para dar más recompensa por pasar a través de un tubo (no es obligatorio)
+            for genome in ge:
+                genome.fitness += 5
+            pipes.append(Pipe(WIN_WIDTH))
+
+        for r in rem:
+            pipes.remove(r)
+
+        for bird in birds:
+            if bird.y + bird.img.get_height() - 10 >= FLOOR or bird.y < -50:
+                nets.pop(birds.index(bird))
+                ge.pop(birds.index(bird))
+                birds.pop(birds.index(bird))
+
+        draw_window(WIN, birds, pipes, base, score, gen, pipe_ind)
+
+        # romper si la puntuación es lo suficientemente alta
+        '''if score > 20:
+            pickle.dump(nets[0],open("best.pickle", "wb"))
+            break'''
+
+
+def run(config_file):
+    """
+    Ejecuta el algoritmo NEAT para entrenar una red neuronal para jugar a Flappy Bird.
+    :param config_file: ubicación del archivo de configuración
+    :return: None
+    """
+    config = neat.config.Config(neat.DefaultGenome, neat.DefaultReproduction,
+                         neat.DefaultSpeciesSet, neat.DefaultStagnation,
+                         config_file)
+
+    # Crea la población, que es el objeto de nivel superior para una ejecución de NEAT.
+    p = neat.Population(config)
+
+    # Agrega un reportero de stdout para mostrar el progreso en la terminal.
+    p.add_reporter(neat.StdOutReporter(True))
+    stats = neat.StatisticsReporter()
+    p.add_reporter(stats)
+    # p.add_reporter(neat.Checkpointer(5))
+
+    # Ejecuta hasta 50 generaciones.
+    winner = p.run(eval_genomes, 50)
+
+    # muestra las estadísticas finales
+    print('\nMejor genoma:\n{!s}'.format(winner))
+
+
+if _name_ == '_main_':
+    # Determina la ruta del archivo de configuración. Esta manipulación de ruta está
+    # aquí para que el script se ejecute correctamente independientemente del
+    # directorio de trabajo actual.
+    local_dir = os.path.dirname(_file_)
+    config_path = os.path.join(local_dir, 'config-feedforward.txt')
+    run(config_path)
