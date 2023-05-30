@@ -120,3 +120,165 @@ class Bird:
         :return: None
         """
         return pygame.mask.from_surface(self.img)
+    
+class Pipe():
+    """
+    Clase que representa un objeto de tubería
+    """
+    GAP = 200  # Espacio entre las tuberías
+    VEL = 5  # Velocidad de desplazamiento de la tubería
+
+    def _init_(self, x):
+        """
+        Inicializa el objeto de la tubería
+        :param x: int
+        :param y: int
+        :return: None
+        """
+        self.x = x
+        self.height = 0
+
+        # Posición del inicio y final de la tubería
+        self.top = 0
+        self.bottom = 0
+
+        self.PIPE_TOP = pygame.transform.flip(pipe_img, False, True)
+        self.PIPE_BOTTOM = pipe_img
+
+        self.passed = False
+
+        self.set_height()
+
+    def set_height(self):
+        """
+        Establece la altura de la tubería desde la parte superior de la pantalla
+        :return: None
+        """
+        self.height = random.randrange(50, 450)
+        self.top = self.height - self.PIPE_TOP.get_height()
+        self.bottom = self.height + self.GAP
+
+    def move(self):
+        """
+        Mueve la tubería en función de la velocidad
+        :return: None
+        """
+        self.x -= self.VEL
+
+    def draw(self, win):
+        """
+        Dibuja la parte superior e inferior de la tubería
+        :param win: ventana/superficie de Pygame
+        :return: None
+        """
+        # Dibuja la parte superior
+        win.blit(self.PIPE_TOP, (self.x, self.top))
+        # Dibuja la parte inferior
+        win.blit(self.PIPE_BOTTOM, (self.x, self.bottom))
+
+    def collide(self, bird, win):
+        """
+        Verifica si un punto está colisionando con la tubería
+        :param bird: objeto Bird
+        :return: Bool
+        """
+        bird_mask = bird.get_mask()
+        top_mask = pygame.mask.from_surface(self.PIPE_TOP)
+        bottom_mask = pygame.mask.from_surface(self.PIPE_BOTTOM)
+        top_offset = (self.x - bird.x, self.top - round(bird.y))
+        bottom_offset = (self.x - bird.x, self.bottom - round(bird.y))
+
+        b_point = bird_mask.overlap(bottom_mask, bottom_offset)
+        t_point = bird_mask.overlap(top_mask, top_offset)
+
+        if b_point or t_point:
+            return True
+        return False
+
+class Base:
+    """
+    Representa el suelo móvil del juego
+    """
+    VEL = 5  # Velocidad de desplazamiento del suelo
+    WIDTH = base_img.get_width()  # Ancho de la imagen del suelo
+    IMG = base_img
+
+    def _init_(self, y):
+        """
+        Inicializa el objeto
+        :param y: int
+        :return: None
+        """
+        self.y = y
+        self.x1 = 0
+        self.x2 = self.WIDTH
+
+    def move(self):
+        """
+        Mueve el suelo para que parezca que se desplaza
+        :return: None
+        """
+        self.x1 -= self.VEL
+        self.x2 -= self.VEL
+        if self.x1 + self.WIDTH < 0:
+            self.x1 = self.x2 + self.WIDTH
+
+        if self.x2 + self.WIDTH < 0:
+            self.x2 = self.x1 + self.WIDTH
+
+    def draw(self, win):
+        """
+        Dibuja el suelo. Son dos imágenes que se mueven juntas.
+        :param win: la superficie o ventana de Pygame
+        :return: None
+        """
+        win.blit(self.IMG, (self.x1, self.y))
+        win.blit(self.IMG, (self.x2, self.y))
+
+
+def blitRotateCenter(surf, image, topleft, angle):
+    """
+    Rota una superficie y la dibuja en la ventana
+    :param surf: la superficie en la que se dibujará
+    :param image: la superficie de imagen para rotar
+    :param topleft: la posición superior izquierda de la imagen
+    :param angle: un valor float para el ángulo
+    :return: None
+    """
+    rotated_image = pygame.transform.rotate(image, angle)
+    new_rect = rotated_image.get_rect(center=image.get_rect(topleft=topleft).center)
+
+    surf.blit(rotated_image, new_rect.topleft)
+
+
+def draw_window(win, birds, pipes, base, score, gen, pipe_ind):
+    """
+    Dibuja la ventana para el ciclo principal del juego
+    :param win: la superficie o ventana de Pygame
+    :param bird: un objeto Bird
+    :param pipes: lista de tuberías
+    :param score: puntuación del juego (int)
+    :param gen: generación actual
+    :param pipe_ind: índice de la tubería más cercana
+    :return: None
+    """
+    if gen == 0:
+        gen = 1
+    win.blit(bg_img, (0, 0))
+
+    for pipe in pipes:
+        pipe.draw(win)
+
+    base.draw(win)
+    for bird in birds:
+        # Dibuja líneas desde el pájaro hasta la tubería
+        if DRAW_LINES:
+            try:
+                pygame.draw.line(win, (255, 0, 0), (bird.x + bird.img.get_width() / 2, bird.y + bird.img.get_height() / 2),
+                                 (pipes[pipe_ind].x + pipes[pipe_ind].PIPE_TOP.get_width() / 2, pipes[pipe_ind].height), 5)
+                pygame.draw.line(win, (255, 0, 0), (bird.x + bird.img.get_width() / 2, bird.y + bird.img.get_height() / 2),
+                                 (pipes[pipe_ind].x +pipes[pipe_ind].PIPE_BOTTOM.get_width() / 2, pipes[pipe_ind].bottom), 5)
+            except:
+                pass
+        # Dibuja el pájaro
+        bird.draw(win)
