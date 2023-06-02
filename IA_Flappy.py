@@ -6,6 +6,7 @@ import time
 import neat
 import visualize
 import pickle
+
 pygame.font.init()  # init font
 
 WIN_WIDTH = 600  # Anchura de la ventana del juego
@@ -193,7 +194,8 @@ class Pipe():
 
         if b_point or t_point:
             return True
-        return False
+        
+        return False
 
 class Base:
     """
@@ -281,7 +283,7 @@ def draw_window(win, birds, pipes, base, score, gen, pipe_ind):
             except:
                 pass
         # Dibuja el pájaro
-        bird.draw(win)
+        bird.draw(win)
     
     # Puntaje
     score_label = STAT_FONT.render("Puntaje: " + str(score), 1, (255, 255, 255))
